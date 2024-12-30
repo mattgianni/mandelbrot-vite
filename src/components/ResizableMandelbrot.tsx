@@ -51,6 +51,7 @@ type CacheItem = {
     width?: number;
     height?: number;
     vp?: Viewport;
+    hsv?: boolean;
     maxIterations?: number;
     imageData?: ImageData;
 };
@@ -61,10 +62,13 @@ const getCacheIndex = (
     width: number,
     height: number,
     vp: Viewport,
-    maxIterations: number
+    maxIterations: number,
+    hsv: boolean
 ) => {
+    const hsvnum = (hsv ? 2 : 1) * 89;
     return (
-        (maxIterations * 83 +
+        (hsvnum +
+            maxIterations * 83 +
             width * 41 +
             height * 17 +
             vp.xMin * 13 +
@@ -79,9 +83,11 @@ const getCacheItem = (
     width: number,
     height: number,
     vp: Viewport,
-    maxIterations: number
+    maxIterations: number,
+    hsv: boolean
 ) => {
-    const cacheItem = cache[getCacheIndex(width, height, vp, maxIterations)];
+    const cacheItem =
+        cache[getCacheIndex(width, height, vp, maxIterations, hsv)];
     if (
         width === cacheItem?.width &&
         height === cacheItem?.height &&
@@ -99,15 +105,102 @@ const setCacheItem = (
     height: number,
     vp: Viewport,
     maxIterations: number,
+    hsv: boolean,
     imageData: ImageData
 ) => {
-    cache[getCacheIndex(width, height, vp, maxIterations)] = {
+    cache[getCacheIndex(width, height, vp, maxIterations, hsv)] = {
         width,
         height,
         vp,
         maxIterations,
+        hsv,
         imageData,
     };
+};
+
+const getColor = (
+    iterations: number,
+    maxIterations: number
+): [number, number, number] => {
+    const t = iterations / maxIterations; // Normalize iteration count
+    const r = Math.floor(9 * (1 - t) * t * t * t * 255);
+    const g = Math.floor(15 * (1 - t) * (1 - t) * t * t * 255);
+    const b = Math.floor(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255);
+    return [r, g, b]; // Return RGB tuple
+};
+
+// const getSmoothColor = (
+//     iterations: number,
+//     z: ComplexNumber,
+//     maxIterations: number
+// ): [number, number, number] => {
+//     const logZn = Math.log(z.x * z.x + z.y * z.y) / 2;
+//     const nu = Math.log(logZn / Math.log(2)) / Math.log(2);
+//     const smoothedIterations = iterations + 1 - nu;
+
+//     const t = smoothedIterations / maxIterations; // Normalize
+//     return [
+//         Math.floor(255 * t),
+//         Math.floor(255 * (1 - t)),
+//         Math.floor(255 * t * (1 - t)),
+//     ];
+// };
+
+const hsvToRgb = (
+    h: number,
+    s: number,
+    v: number
+): [number, number, number] => {
+    let r = 0,
+        g = 0,
+        b = 0;
+    const i = Math.floor(h * 6);
+    const f = h * 6 - i;
+    const p = v * (1 - s);
+    const q = v * (1 - f * s);
+    const t = v * (1 - (1 - f) * s);
+
+    switch (i % 6) {
+        case 0:
+            r = v;
+            g = t;
+            b = p;
+            break;
+        case 1:
+            r = q;
+            g = v;
+            b = p;
+            break;
+        case 2:
+            r = p;
+            g = v;
+            b = t;
+            break;
+        case 3:
+            r = p;
+            g = q;
+            b = v;
+            break;
+        case 4:
+            r = t;
+            g = p;
+            b = v;
+            break;
+        case 5:
+            r = v;
+            g = p;
+            b = q;
+            break;
+    }
+    return [Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255)];
+};
+
+const getHSVColor = (
+    iterations: number,
+    maxIterations: number
+): [number, number, number] => {
+    const hue = iterations / maxIterations; // Map iterations to hue
+    return hsvToRgb(hue, 1, iterations < maxIterations ? 1 : 0);
 };
 
 const defaultRenderer = (
@@ -115,14 +208,16 @@ const defaultRenderer = (
     width: number,
     height: number,
     maxIterations: number,
-    vp: Viewport
+    vp: Viewport,
+    hsv: boolean
 ) => {
-    const cacheItem = getCacheItem(width, height, vp, maxIterations);
+    const cacheItem = getCacheItem(width, height, vp, maxIterations, hsv);
     if (
         width === cacheItem?.width &&
         height === cacheItem?.height &&
         vp === cacheItem?.vp &&
-        maxIterations === cacheItem?.maxIterations
+        maxIterations === cacheItem?.maxIterations &&
+        hsv === cacheItem?.hsv
     ) {
         ctx.putImageData(cacheItem.imageData!, 0, 0);
         return;
@@ -149,17 +244,35 @@ const defaultRenderer = (
                         iteration++;
                     }
 
-                    const color =
-                        zx * zx + zy * zy < 4
-                            ? 0
-                            : Math.floor((iteration / maxIterations) * 255);
+                    // const color =
+                    //     zx * zx + zy * zy < 4
+                    //         ? 0
+                    //         : Math.floor((iteration / maxIterations) * 255);
 
+                    const color = hsv
+                        ? getHSVColor(iteration, maxIterations)
+                        : getColor(iteration, maxIterations);
+                    // const color = getSmoothColor(
+                    //     iteration,
+                    //     { x: cx, y: cy },
+                    //     maxIterations
+                    // );
                     const index = (y * width + x) * 4;
 
-                    imageData.data[index] = (x / width) * color; // Red
-                    imageData.data[index + 1] = (y / height) * color; // Green
-                    imageData.data[index + 2] = color; // Blue
+                    // imageData.data[index] = color; // Red
+                    // imageData.data[index + 1] = color; // Green
+                    // imageData.data[index + 2] = color; // Blue
+                    // imageData.data[index + 3] = 255; // Alpha
+
+                    imageData.data[index] = color[0]; // Red
+                    imageData.data[index + 1] = color[1]; // Green
+                    imageData.data[index + 2] = color[2]; // Blue
                     imageData.data[index + 3] = 255; // Alpha
+
+                    // imageData.data[index] = (x / width) * color[0]; // Red
+                    // imageData.data[index + 1] = (y / height) * color[1]; // Green
+                    // imageData.data[index + 2] = color[2]; // Blue
+                    // imageData.data[index + 3] = 255; // Alpha
                 }
             }
             resolve();
@@ -168,7 +281,7 @@ const defaultRenderer = (
 
     Promise.all(promises).then(() => {
         ctx.putImageData(imageData, 0, 0);
-        setCacheItem(width, height, vp, maxIterations, imageData);
+        setCacheItem(width, height, vp, maxIterations, hsv, imageData);
     });
     // ctx.putImageData(imageData, 0, 0);
 };
@@ -200,6 +313,7 @@ const ResizableMandelbrot: React.FC = () => {
     const [anchor, setAnchor] = useState<ScreenCoordinate | undefined>(
         undefined
     );
+    const [hsv, setHsv] = useState(false);
 
     useEffect(() => {
         const resizeObserver = new ResizeObserver((entries) => {
@@ -223,6 +337,7 @@ const ResizableMandelbrot: React.FC = () => {
 
     // primary rendering logic
     useEffect(() => {
+        console.log("rendering...");
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -239,7 +354,14 @@ const ResizableMandelbrot: React.FC = () => {
 
         // draw the mandelbrot set
         if (view) {
-            defaultRenderer(ctx, imageWidth, imageHeight, maxIterations, view);
+            defaultRenderer(
+                ctx,
+                imageWidth,
+                imageHeight,
+                maxIterations,
+                view,
+                hsv
+            );
         }
 
         // draw trace lines if enabled
@@ -315,6 +437,7 @@ const ResizableMandelbrot: React.FC = () => {
         showAxis,
         superTraceLines,
         anchor,
+        hsv,
     ]);
 
     const zoomViewAtMousePointer = (
@@ -499,6 +622,10 @@ const ResizableMandelbrot: React.FC = () => {
                     yMax: yMax + dy / 10,
                 });
                 break;
+            case "c":
+            case "C":
+                setHsv((prev) => !prev);
+                break;
             default:
                 console.log(`unbound keyboard event: [${event.key}]`);
                 break;
@@ -537,6 +664,9 @@ const ResizableMandelbrot: React.FC = () => {
                 <h1 className="text-white">max iters: {maxIterations}</h1>
                 <h1 className="text-white">
                     zoom: {(3.5 / (view.xMax - view.xMin)).toFixed(2)}x
+                </h1>
+                <h1 className="text-white">
+                    color mode: {hsv ? "HSV" : "RGB"}
                 </h1>
                 {traceLines && (
                     <h1 className="text-white">
