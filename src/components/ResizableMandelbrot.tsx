@@ -389,7 +389,6 @@ const ResizableMandelbrot: React.FC = () => {
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLCanvasElement>) => {
-        console.log(event.key);
         const { xMin, xMax, yMin, yMax } = view;
         const dx = xMax - xMin;
         const dy = yMax - yMin;
@@ -460,6 +459,7 @@ const ResizableMandelbrot: React.FC = () => {
             case "Escape":
                 setAnchor(undefined);
                 break;
+            case "ArrowLeft":
             case "a":
             case "A":
                 setView({
@@ -469,6 +469,7 @@ const ResizableMandelbrot: React.FC = () => {
                     yMax,
                 });
                 break;
+            case "ArrowUp":
             case "w":
             case "W":
                 setView({
@@ -478,6 +479,7 @@ const ResizableMandelbrot: React.FC = () => {
                     yMax: yMax - dy / 10,
                 });
                 break;
+            case "ArrowRight":
             case "d":
             case "D":
                 setView({
@@ -487,6 +489,7 @@ const ResizableMandelbrot: React.FC = () => {
                     yMax,
                 });
                 break;
+            case "ArrowDown":
             case "s":
             case "S":
                 setView({
@@ -497,6 +500,7 @@ const ResizableMandelbrot: React.FC = () => {
                 });
                 break;
             default:
+                console.log(`unbound keyboard event: [${event.key}]`);
                 break;
         }
     };
