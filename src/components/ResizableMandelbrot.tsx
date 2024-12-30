@@ -342,7 +342,6 @@ const ResizableMandelbrot: React.FC = () => {
                     event.deltaY < 0 ? prev + delta : prev - delta
                 );
             });
-            console.log(`updated maxIterations: ${maxIterations}`);
             return;
         }
 
@@ -391,6 +390,9 @@ const ResizableMandelbrot: React.FC = () => {
 
     const handleKeyDown = (event: KeyboardEvent<HTMLCanvasElement>) => {
         console.log(event.key);
+        const { xMin, xMax, yMin, yMax } = view;
+        const dx = xMax - xMin;
+        const dy = yMax - yMin;
         switch (event.key) {
             case "1":
                 setMaxIterations(10);
@@ -457,6 +459,42 @@ const ResizableMandelbrot: React.FC = () => {
                 break;
             case "Escape":
                 setAnchor(undefined);
+                break;
+            case "a":
+            case "A":
+                setView({
+                    xMin: xMin - dx / 10,
+                    xMax: xMax - dx / 10,
+                    yMin,
+                    yMax,
+                });
+                break;
+            case "w":
+            case "W":
+                setView({
+                    xMin,
+                    xMax,
+                    yMin: yMin - dy / 10,
+                    yMax: yMax - dy / 10,
+                });
+                break;
+            case "d":
+            case "D":
+                setView({
+                    xMin: xMin + dx / 10,
+                    xMax: xMax + dx / 10,
+                    yMin,
+                    yMax,
+                });
+                break;
+            case "s":
+            case "S":
+                setView({
+                    xMin,
+                    xMax,
+                    yMin: yMin + dy / 10,
+                    yMax: yMax + dy / 10,
+                });
                 break;
             default:
                 break;
